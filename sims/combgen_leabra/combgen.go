@@ -70,53 +70,20 @@ var ParamSets = params.Sets{
 				}},
 			{Sel: "Layer", Desc: "using default 1.8 inhib for all of network -- can explore",
 				Params: params.Params{
-					"Layer.Inhib.Layer.Gi": "1.8",
-					"Layer.Act.Gbar.L":     "0.1", // set explictly, new default, a bit better vs 0.2
+					"Layer.Inhib.Layer.Gi":  "1.8",
+					"Layer.Learn.AvgL.Gain": "3.0", // 2.5 def == 2.0, 3.0
+					"Layer.Act.Gbar.L":      "0.1", // set explictly, new default, a bit better vs 0.2
 				}},
 			{Sel: ".Back", Desc: "top-down back-projections MUST have lower relative weight scale, otherwise network hallucinates",
 				Params: params.Params{
-					"Prjn.WtScale.Rel": "0.2",
+					"Prjn.WtScale.Rel": "0.1",
 				}},
-			{Sel: "#Output", Desc: "output definitely needs lower inhib -- true for smaller layers in general",
+			{Sel: "#Output", Desc: "pool output inhib -- major benefit",
 				Params: params.Params{
-					"Layer.Inhib.Layer.Gi": "1.4",
-				}},
-		},
-		"Sim": &params.Sheet{ // sim params apply to sim object
-			{Sel: "Sim", Desc: "best params always finish in this time",
-				Params: params.Params{
-					"Sim.MaxEpcs": "50",
-				}},
-		},
-	}},
-	{Name: "DefaultInhib", Desc: "output uses default inhib instead of lower", Sheets: params.Sheets{
-		"Network": &params.Sheet{
-			{Sel: "#Output", Desc: "go back to default",
-				Params: params.Params{
-					"Layer.Inhib.Layer.Gi": "1.8",
-				}},
-		},
-		"Sim": &params.Sheet{ // sim params apply to sim object
-			{Sel: "Sim", Desc: "takes longer -- generally doesn't finish..",
-				Params: params.Params{
-					"Sim.MaxEpcs": "100",
-				}},
-		},
-	}},
-	{Name: "NoMomentum", Desc: "no momentum or normalization", Sheets: params.Sheets{
-		"Network": &params.Sheet{
-			{Sel: "Prjn", Desc: "no norm or momentum",
-				Params: params.Params{
-					"Prjn.Learn.Norm.On":     "false",
-					"Prjn.Learn.Momentum.On": "false",
-				}},
-		},
-	}},
-	{Name: "WtBalOn", Desc: "try with weight bal on", Sheets: params.Sheets{
-		"Network": &params.Sheet{
-			{Sel: "Prjn", Desc: "weight bal on",
-				Params: params.Params{
-					"Prjn.Learn.WtBal.On": "true",
+					"Layer.Inhib.Pool.On":  "true",
+					"Layer.Inhib.Layer.On": "false", // major diffs
+					"Layer.Inhib.Pool.Gi":  "1.7",   // 1.6 too low for gen
+					"Layer.Inhib.Layer.Gi": "1.6",
 				}},
 		},
 	}},
@@ -219,8 +186,8 @@ func (ss *Sim) New() {
 	}
 	ss.ViewOn = true
 	ss.TrainUpdt = leabra.AlphaCycle
-	ss.TestUpdt = leabra.Cycle
-	ss.TestInterval = 5
+	ss.TestUpdt = leabra.AlphaCycle
+	ss.TestInterval = 10
 	ss.LayStatNms = []string{"Hidden1", "Output"}
 }
 
@@ -243,28 +210,22 @@ func (ss *Sim) ConfigEnv() {
 		ss.MaxRuns = 10
 	}
 	if ss.MaxEpcs == 0 { // allow user override
-		ss.MaxEpcs = 50
-		ss.NZeroStop = 5
+		ss.MaxEpcs = 500
+		ss.NZeroStop = -1
 	}
 
 	ss.TrainEnv.Nm = "TrainEnv"
 	ss.TrainEnv.Dsc = "training params and state"
 	ss.TrainEnv.Defaults()
-	ss.TrainEnv.Config(LinesToID, false, evec.Vec2i{5, 5}, 4, 100, 500, 0)
+	ss.TrainEnv.Config(LinesToID, false, evec.Vec2i{5, 5}, 4, 500, 500, 0)
 	ss.TrainEnv.Validate()
 	ss.TrainEnv.Run.Max = ss.MaxRuns // note: we are not setting epoch max -- do that manually
 
 	ss.TestEnv.Nm = "TestEnv"
 	ss.TestEnv.Dsc = "testing params and state"
 	ss.TestEnv.Defaults()
-	ss.TestEnv.Config(LinesToID, true, evec.Vec2i{5, 5}, 4, 100, 500, 0)
+	ss.TestEnv.Config(LinesToID, true, evec.Vec2i{5, 5}, 4, 500, 500, 0)
 	ss.TestEnv.Validate()
-
-	// note: to create a train / test split of pats, do this:
-	// all := etable.NewIdxView(ss.Pats)
-	// splits, _ := split.Permuted(all, []float64{.8, .2}, []string{"Train", "Test"})
-	// ss.TrainEnv.Table = splits.Splits[0]
-	// ss.TestEnv.Table = splits.Splits[1]
 
 	ss.TrainEnv.Init(0)
 	ss.TestEnv.Init(0)
@@ -314,7 +275,8 @@ func (ss *Sim) ConfigNet(net *leabra.Network) {
 // and resets the epoch log table
 func (ss *Sim) Init() {
 	ss.InitRndSeed()
-	ss.ConfigEnv() // re-config env just in case a different set of patterns was
+	ss.TrainEnv.Run.Max = ss.MaxRuns
+	// ss.ConfigEnv() // re-config env just in case a different set of patterns was
 	// selected or patterns have been modified etc
 	ss.StopNow = false
 	ss.SetParams("", ss.LogSetParams) // all sheets
@@ -806,6 +768,14 @@ func (ss *Sim) LogTrnEpc(dt *etable.Table) {
 	dt.SetCellFloat("CosDiff", row, ss.EpcCosDiff)
 	dt.SetCellFloat("PerTrlMSec", row, ss.EpcPerTrlMSec)
 
+	tst := ss.TstEpcLog
+	if tst.Rows > 0 {
+		cpc := []string{"SSE", "AvgSSE", "PctErr", "PctCor", "CosDiff"}
+		for _, cn := range cpc {
+			dt.SetCellFloat("Tst"+cn, row, tst.CellFloat(cn, tst.Rows-1))
+		}
+	}
+
 	for _, lnm := range ss.LayStatNms {
 		ly := ss.Net.LayerByName(lnm).(leabra.LeabraLayer).AsLeabra()
 		dt.SetCellFloat(ly.Nm+"_ActAvg", row, float64(ly.Pools[0].ActAvg.ActPAvgEff))
@@ -839,6 +809,10 @@ func (ss *Sim) ConfigTrnEpcLog(dt *etable.Table) {
 		{"CosDiff", etensor.FLOAT64, nil, nil},
 		{"PerTrlMSec", etensor.FLOAT64, nil, nil},
 	}
+	cpc := []string{"SSE", "AvgSSE", "PctErr", "PctCor", "CosDiff"}
+	for _, cn := range cpc {
+		sch = append(sch, etable.Column{"Tst" + cn, etensor.FLOAT64, nil, nil})
+	}
 	for _, lnm := range ss.LayStatNms {
 		sch = append(sch, etable.Column{lnm + "_ActAvg", etensor.FLOAT64, nil, nil})
 	}
@@ -854,10 +828,19 @@ func (ss *Sim) ConfigTrnEpcPlot(plt *eplot.Plot2D, dt *etable.Table) *eplot.Plot
 	plt.SetColParams("Epoch", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("SSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("AvgSSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
-	plt.SetColParams("PctErr", eplot.On, eplot.FixMin, 0, eplot.FixMax, 1) // default plot
-	plt.SetColParams("PctCor", eplot.On, eplot.FixMin, 0, eplot.FixMax, 1) // default plot
+	plt.SetColParams("PctErr", eplot.On, eplot.FixMin, 0, eplot.FixMax, 1)  // default plot
+	plt.SetColParams("PctCor", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1) // default plot
 	plt.SetColParams("CosDiff", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1)
 	plt.SetColParams("PerTrlMSec", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
+
+	cpc := []string{"SSE", "AvgSSE", "PctErr", "PctCor", "CosDiff"}
+	for _, cn := range cpc {
+		if cn == "PctErr" {
+			plt.SetColParams("Tst"+cn, eplot.On, eplot.FixMin, 0, eplot.FixMax, .5)
+		} else {
+			plt.SetColParams("Tst"+cn, eplot.Off, eplot.FixMin, 0, eplot.FixMax, .5)
+		}
+	}
 
 	for _, lnm := range ss.LayStatNms {
 		plt.SetColParams(lnm+"_ActAvg", eplot.Off, eplot.FixMin, 0, eplot.FixMax, .5)
@@ -1034,8 +1017,8 @@ func (ss *Sim) ConfigTstEpcPlot(plt *eplot.Plot2D, dt *etable.Table) *eplot.Plot
 	plt.SetColParams("Epoch", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("SSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("AvgSSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
-	plt.SetColParams("PctErr", eplot.On, eplot.FixMin, 0, eplot.FixMax, 1) // default plot
-	plt.SetColParams("PctCor", eplot.On, eplot.FixMin, 0, eplot.FixMax, 1) // default plot
+	plt.SetColParams("PctErr", eplot.On, eplot.FixMin, 0, eplot.FixMax, 1)  // default plot
+	plt.SetColParams("PctCor", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1) // default plot
 	plt.SetColParams("CosDiff", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1)
 	return plt
 }
@@ -1187,9 +1170,9 @@ func (ss *Sim) ConfigGui() *gi.Window {
 	height := 1200
 
 	gi.SetAppName("combgen")
-	gi.SetAppAbout(`This demonstrates a basic Leabra model. See <a href="https://github.com/emer/emergent">emergent on GitHub</a>.</p>`)
+	gi.SetAppAbout(`This tests for combinatorial generalization in Leabra. See <a href="https://github.com/emer/emergent">emergent on GitHub</a>.</p>`)
 
-	win := gi.NewMainWindow("combgen", "Leabra Random Associator", width, height)
+	win := gi.NewMainWindow("combgen", "Leabra Combinatorial Generalization", width, height)
 	ss.Win = win
 
 	vp := win.WinViewport2D()
@@ -1434,11 +1417,12 @@ func (ss *Sim) CmdArgs() {
 	flag.StringVar(&ss.Tag, "tag", "", "extra tag to add to file names saved from this run")
 	flag.StringVar(&note, "note", "", "user note -- describe the run params etc")
 	flag.IntVar(&ss.StartRun, "run", 0, "starting run number -- determines the random seed -- runs counts from there -- can do all runs in parallel by launching separate jobs with each run, runs = 1")
-	flag.IntVar(&ss.MaxRuns, "runs", 10, "number of runs to do (note that MaxEpcs is in paramset)")
+	flag.IntVar(&ss.MaxEpcs, "epcs", 500, "number of epochs")
+	flag.IntVar(&ss.MaxRuns, "runs", 10, "number of runs to do")
 	flag.BoolVar(&ss.LogSetParams, "setparams", false, "if true, print a record of each parameter that is set")
 	flag.BoolVar(&ss.SaveWts, "wts", false, "if true, save final weights after each run")
 	flag.BoolVar(&saveEpcLog, "epclog", true, "if true, save train epoch log to file")
-	flag.BoolVar(&saveRunLog, "runlog", true, "if true, save run epoch log to file")
+	flag.BoolVar(&saveRunLog, "runlog", false, "if true, save run epoch log to file")
 	flag.BoolVar(&saveNetData, "netdata", false, "if true, save network activation etc data from testing trials, for later viewing in netview")
 	flag.BoolVar(&nogui, "nogui", true, "if not passing any other args and want to run nogui, use nogui")
 	flag.Parse()
@@ -1482,9 +1466,9 @@ func (ss *Sim) CmdArgs() {
 	if ss.SaveWts {
 		fmt.Printf("Saving final weights per run\n")
 	}
-	fmt.Printf("Running %d Runs starting at %d\n", ss.MaxRuns, ss.StartRun)
+	fmt.Printf("Running Runs: %d - %d\n", ss.StartRun, ss.MaxRuns)
 	ss.TrainEnv.Run.Set(ss.StartRun)
-	ss.TrainEnv.Run.Max = ss.StartRun + ss.MaxRuns
+	ss.TrainEnv.Run.Max = ss.MaxRuns
 	ss.NewRun()
 	ss.Train()
 

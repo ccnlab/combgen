@@ -84,7 +84,7 @@ func (ev *CombEnv) Config(typ PatsType, test bool, patsz evec.Vec2i, npools, ntr
 	ev.PatsSize = patsz
 	ev.NPools = npools
 	ev.NTrain = ntrain
-	ev.NTest = ntrain
+	ev.NTest = ntest
 	ev.NPats = npats
 
 	ev.ConfigPats()
