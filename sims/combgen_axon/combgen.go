@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emer/axon/axon"
 	"github.com/emer/emergent/emer"
 	"github.com/emer/emergent/env"
 	"github.com/emer/emergent/evec"
@@ -27,7 +28,6 @@ import (
 	"github.com/emer/etable/etensor"
 	_ "github.com/emer/etable/etview" // include to get gui views
 	"github.com/emer/etable/split"
-	"github.com/emer/leabra/leabra"
 	"github.com/goki/gi/gi"
 	"github.com/goki/gi/gimain"
 	"github.com/goki/gi/giv"
@@ -64,26 +64,37 @@ var ParamSets = params.Sets{
 		"Network": &params.Sheet{
 			{Sel: "Prjn", Desc: "norm and momentum on works better, but wt bal is not better for smaller nets",
 				Params: params.Params{
-					"Prjn.Learn.Norm.On":     "true",
-					"Prjn.Learn.Momentum.On": "true",
-					"Prjn.Learn.WtBal.On":    "false",
+					"Prjn.Learn.Norm.On":      "false",
+					"Prjn.Learn.Momentum.On":  "false",
+					"Prjn.Learn.WtBal.On":     "true",
+					"Prjn.Learn.XCal.SetLLrn": "true",
+					"Prjn.Learn.XCal.LLrn":    "0",
+					"Prjn.Com.PFail":          "0.0",
+					"Prjn.Com.PFailWtMax":     "0.0",
 				}},
-			{Sel: "Layer", Desc: "using default 1.8 inhib for all of network -- can explore",
+			{Sel: "Layer", Desc: "defaults",
 				Params: params.Params{
-					"Layer.Inhib.Layer.Gi":  "1.8",
-					"Layer.Learn.AvgL.Gain": "3.5", // 3.5 > 3.0 > 2.5 def
-					"Layer.Act.Gbar.L":      "0.1", // set explictly, new default, a bit better vs 0.2
+					"Layer.Inhib.Layer.Gi":  "1",
+					"Layer.Learn.AvgL.Gain": "2.5",
+					"Layer.Act.Gbar.L":      "0.2",
 				}},
 			{Sel: ".Back", Desc: "top-down back-projections MUST have lower relative weight scale, otherwise network hallucinates",
 				Params: params.Params{
-					"Prjn.WtScale.Rel": "0.1",
+					"Prjn.WtScale.Rel": "0.2",
+				}},
+			{Sel: ".Hidden", Desc: "",
+				Params: params.Params{
+					"Layer.Inhib.Layer.Gi":    "1.2",
+					"Layer.Inhib.ActAvg.Init": "0.03",
+					"Layer.Inhib.Adapt.On":    "true",
 				}},
 			{Sel: "#Output", Desc: "pool output inhib -- major benefit",
 				Params: params.Params{
 					"Layer.Inhib.Pool.On":  "true",
 					"Layer.Inhib.Layer.On": "false", // major diffs
-					"Layer.Inhib.Pool.Gi":  "1.8",   // 1.8 > 1.7 for gen 1.6 too low for gen
-					"Layer.Inhib.Layer.Gi": "1.6",
+					"Layer.Inhib.Pool.Gi":  "0.8",
+					"Layer.Inhib.Layer.Gi": "1.0",
+					"Layer.Act.GABAB.Gbar": "0.005", // .005 > .01 > .02 > .05 > .1 > .2
 				}},
 		},
 	}},
@@ -95,50 +106,47 @@ var ParamSets = params.Sets{
 // as arguments to methods, and provides the core GUI interface (note the view tags
 // for the fields which provide hints to how things should be displayed).
 type Sim struct {
-	Net          *leabra.Network   `view:"no-inline" desc:"the network -- click to view / edit parameters for layers, prjns, etc"`
-	Pats         *etable.Table     `view:"no-inline" desc:"the training patterns to use"`
-	TrnEpcLog    *etable.Table     `view:"no-inline" desc:"training epoch-level log data"`
-	TstEpcLog    *etable.Table     `view:"no-inline" desc:"testing epoch-level log data"`
-	TstTrlLog    *etable.Table     `view:"no-inline" desc:"testing trial-level log data"`
-	TstErrLog    *etable.Table     `view:"no-inline" desc:"log of all test trials where errors were made"`
-	TstErrStats  *etable.Table     `view:"no-inline" desc:"stats on test trials where errors were made"`
-	TstCycLog    *etable.Table     `view:"no-inline" desc:"testing cycle-level log data"`
-	RunLog       *etable.Table     `view:"no-inline" desc:"summary log of each run"`
-	RunStats     *etable.Table     `view:"no-inline" desc:"aggregate stats on all runs"`
-	Params       params.Sets       `view:"no-inline" desc:"full collection of param sets"`
-	ParamSet     string            `desc:"which set of *additional* parameters to use -- always applies Base and optionaly this next if set -- can use multiple names separated by spaces (don't put spaces in ParamSet names!)"`
-	Tag          string            `desc:"extra tag string to add to any file names output from sim (e.g., weights files, log files, params for run)"`
-	StartRun     int               `desc:"starting run number -- typically 0 but can be set in command args for parallel runs on a cluster"`
-	MaxRuns      int               `desc:"maximum number of model runs to perform (starting from StartRun)"`
-	MaxEpcs      int               `desc:"maximum number of epochs to run per model run"`
-	NZeroStop    int               `desc:"if a positive number, training will stop after this many epochs with zero SSE"`
-	TrainEnv     CombEnv           `desc:"Training environment -- contains everything about iterating over input / output patterns over training"`
-	TestEnv      CombEnv           `desc:"Testing environment -- manages iterating over testing"`
-	Time         leabra.Time       `desc:"leabra timing parameters and state"`
-	ViewOn       bool              `desc:"whether to update the network view while running"`
-	TrainUpdt    leabra.TimeScales `desc:"at what time scale to update the display during training?  Anything longer than Epoch updates at Epoch in this model"`
-	TestUpdt     leabra.TimeScales `desc:"at what time scale to update the display during testing?  Anything longer than Epoch updates at Epoch in this model"`
-	TestInterval int               `desc:"how often to run through all the test patterns, in terms of training epochs -- can use 0 or -1 for no testing"`
-	LayStatNms   []string          `desc:"names of layers to collect more detailed stats on (avg act, etc)"`
+	Net          *axon.Network   `view:"no-inline" desc:"the network -- click to view / edit parameters for layers, prjns, etc"`
+	Pats         *etable.Table   `view:"no-inline" desc:"the training patterns to use"`
+	TrnEpcLog    *etable.Table   `view:"no-inline" desc:"training epoch-level log data"`
+	TstEpcLog    *etable.Table   `view:"no-inline" desc:"testing epoch-level log data"`
+	TstTrlLog    *etable.Table   `view:"no-inline" desc:"testing trial-level log data"`
+	TstErrLog    *etable.Table   `view:"no-inline" desc:"log of all test trials where errors were made"`
+	TstErrStats  *etable.Table   `view:"no-inline" desc:"stats on test trials where errors were made"`
+	TstCycLog    *etable.Table   `view:"no-inline" desc:"testing cycle-level log data"`
+	RunLog       *etable.Table   `view:"no-inline" desc:"summary log of each run"`
+	RunStats     *etable.Table   `view:"no-inline" desc:"aggregate stats on all runs"`
+	Params       params.Sets     `view:"no-inline" desc:"full collection of param sets"`
+	ParamSet     string          `desc:"which set of *additional* parameters to use -- always applies Base and optionaly this next if set -- can use multiple names separated by spaces (don't put spaces in ParamSet names!)"`
+	Tag          string          `desc:"extra tag string to add to any file names output from sim (e.g., weights files, log files, params for run)"`
+	StartRun     int             `desc:"starting run number -- typically 0 but can be set in command args for parallel runs on a cluster"`
+	MaxRuns      int             `desc:"maximum number of model runs to perform (starting from StartRun)"`
+	MaxEpcs      int             `desc:"maximum number of epochs to run per model run"`
+	NZeroStop    int             `desc:"if a positive number, training will stop after this many epochs with zero UnitErr"`
+	TrainEnv     CombEnv         `desc:"Training environment -- contains everything about iterating over input / output patterns over training"`
+	TestEnv      CombEnv         `desc:"Testing environment -- manages iterating over testing"`
+	Time         axon.Time       `desc:"axon timing parameters and state"`
+	ViewOn       bool            `desc:"whether to update the network view while running"`
+	TrainUpdt    axon.TimeScales `desc:"at what time scale to update the display during training?  Anything longer than Epoch updates at Epoch in this model"`
+	TestUpdt     axon.TimeScales `desc:"at what time scale to update the display during testing?  Anything longer than Epoch updates at Epoch in this model"`
+	TestInterval int             `desc:"how often to run through all the test patterns, in terms of training epochs -- can use 0 or -1 for no testing"`
+	LayStatNms   []string        `desc:"names of layers to collect more detailed stats on (avg act, etc)"`
 
 	// statistics: note use float64 as that is best for etable.Table
-	TrlErr        float64 `inactive:"+" desc:"1 if trial was error, 0 if correct -- based on SSE = 0 (subject to .5 unit-wise tolerance)"`
-	TrlSSE        float64 `inactive:"+" desc:"current trial's sum squared error"`
-	TrlAvgSSE     float64 `inactive:"+" desc:"current trial's average sum squared error"`
+	TrlErr        float64 `inactive:"+" desc:"1 if trial was error, 0 if correct -- based on UnitErr = 0 (subject to .5 unit-wise tolerance)"`
+	TrlUnitErr    float64 `inactive:"+" desc:"current trial's sum squared error"`
 	TrlCosDiff    float64 `inactive:"+" desc:"current trial's cosine difference"`
-	EpcSSE        float64 `inactive:"+" desc:"last epoch's total sum squared error"`
-	EpcAvgSSE     float64 `inactive:"+" desc:"last epoch's average sum squared error (average over trials, and over units within layer)"`
+	EpcUnitErr    float64 `inactive:"+" desc:"last epoch's total sum squared error"`
 	EpcPctErr     float64 `inactive:"+" desc:"last epoch's average TrlErr"`
 	EpcPctCor     float64 `inactive:"+" desc:"1 - last epoch's average TrlErr"`
 	EpcCosDiff    float64 `inactive:"+" desc:"last epoch's average cosine difference for output layer (a normalized error measure, maximum of 1 when the minus phase exactly matches the plus)"`
 	EpcPerTrlMSec float64 `inactive:"+" desc:"how long did the epoch take per trial in wall-clock milliseconds"`
-	FirstZero     int     `inactive:"+" desc:"epoch at when SSE first went to zero"`
-	NZero         int     `inactive:"+" desc:"number of epochs in a row with zero SSE"`
+	FirstZero     int     `inactive:"+" desc:"epoch at when UnitErr first went to zero"`
+	NZero         int     `inactive:"+" desc:"number of epochs in a row with zero UnitErr"`
 
 	// internal state - view:"-"
 	SumErr       float64                     `view:"-" inactive:"+" desc:"sum to increment as we go through epoch"`
-	SumSSE       float64                     `view:"-" inactive:"+" desc:"sum to increment as we go through epoch"`
-	SumAvgSSE    float64                     `view:"-" inactive:"+" desc:"sum to increment as we go through epoch"`
+	SumUnitErr   float64                     `view:"-" inactive:"+" desc:"sum to increment as we go through epoch"`
 	SumCosDiff   float64                     `view:"-" inactive:"+" desc:"sum to increment as we go through epoch"`
 	Win          *gi.Window                  `view:"-" desc:"main GUI window"`
 	NetView      *netview.NetView            `view:"-" desc:"the network viewer"`
@@ -171,7 +179,7 @@ var TheSim Sim
 
 // New creates new blank elements and initializes defaults
 func (ss *Sim) New() {
-	ss.Net = &leabra.Network{}
+	ss.Net = &axon.Network{}
 	ss.Pats = &etable.Table{}
 	ss.TrnEpcLog = &etable.Table{}
 	ss.TstEpcLog = &etable.Table{}
@@ -185,8 +193,8 @@ func (ss *Sim) New() {
 		ss.RndSeeds[i] = int64(i) + 1 // exclude 0
 	}
 	ss.ViewOn = true
-	ss.TrainUpdt = leabra.AlphaCycle
-	ss.TestUpdt = leabra.AlphaCycle
+	ss.TrainUpdt = axon.AlphaCycle
+	ss.TestUpdt = axon.AlphaCycle
 	ss.TestInterval = 10
 	ss.LayStatNms = []string{"Hidden1", "Output"}
 }
@@ -231,7 +239,7 @@ func (ss *Sim) ConfigEnv() {
 	ss.TestEnv.Init(0)
 }
 
-func (ss *Sim) ConfigNet(net *leabra.Network) {
+func (ss *Sim) ConfigNet(net *axon.Network) {
 	net.InitName(net, "CombGen")
 	inp := net.AddLayer4D("Input", 1, ss.TrainEnv.NPools, ss.TrainEnv.PatsSize.Y, ss.TrainEnv.PatsSize.X, emer.Input)
 	hid1 := net.AddLayer2D("Hidden1", 16, 16, emer.Hidden)
@@ -352,11 +360,11 @@ func (ss *Sim) AlphaCyc(train bool) {
 			ss.Time.CycleInc()
 			if ss.ViewOn {
 				switch viewUpdt {
-				case leabra.Cycle:
+				case axon.Cycle:
 					if cyc != ss.Time.CycPerQtr-1 { // will be updated by quarter
 						ss.UpdateView(train)
 					}
-				case leabra.FastSpike:
+				case axon.FastSpike:
 					if (cyc+1)%10 == 0 {
 						ss.UpdateView(train)
 					}
@@ -367,9 +375,9 @@ func (ss *Sim) AlphaCyc(train bool) {
 		ss.Time.QuarterInc()
 		if ss.ViewOn {
 			switch {
-			case viewUpdt <= leabra.Quarter:
+			case viewUpdt <= axon.Quarter:
 				ss.UpdateView(train)
-			case viewUpdt == leabra.Phase:
+			case viewUpdt == axon.Phase:
 				if qtr >= 2 {
 					ss.UpdateView(train)
 				}
@@ -380,7 +388,7 @@ func (ss *Sim) AlphaCyc(train bool) {
 	if train {
 		ss.Net.DWt()
 	}
-	if ss.ViewOn && viewUpdt == leabra.AlphaCycle {
+	if ss.ViewOn && viewUpdt == axon.AlphaCycle {
 		ss.UpdateView(train)
 	}
 	if ss.TstCycPlot != nil && !train {
@@ -398,7 +406,7 @@ func (ss *Sim) ApplyInputs(en env.Env) {
 
 	lays := []string{"Input", "Output"}
 	for _, lnm := range lays {
-		ly := ss.Net.LayerByName(lnm).(leabra.LeabraLayer).AsLeabra()
+		ly := ss.Net.LayerByName(lnm).(axon.AxonLayer).AsAxon()
 		pats := en.State(ly.Nm)
 		if pats != nil {
 			ly.ApplyExt(pats)
@@ -419,7 +427,7 @@ func (ss *Sim) TrainTrial() {
 	epc, _, chg := ss.TrainEnv.Counter(env.Epoch)
 	if chg {
 		ss.LogTrnEpc(ss.TrnEpcLog)
-		if ss.ViewOn && ss.TrainUpdt > leabra.AlphaCycle {
+		if ss.ViewOn && ss.TrainUpdt > axon.AlphaCycle {
 			ss.UpdateView(true)
 		}
 		if ss.TestInterval > 0 && epc%ss.TestInterval == 0 { // note: epc is *next* so won't trigger first time
@@ -473,17 +481,14 @@ func (ss *Sim) NewRun() {
 func (ss *Sim) InitStats() {
 	// accumulators
 	ss.SumErr = 0
-	ss.SumSSE = 0
-	ss.SumAvgSSE = 0
+	ss.SumUnitErr = 0
 	ss.SumCosDiff = 0
 	ss.FirstZero = -1
 	ss.NZero = 0
 	// clear rest just to make Sim look initialized
 	ss.TrlErr = 0
-	ss.TrlSSE = 0
-	ss.TrlAvgSSE = 0
-	ss.EpcSSE = 0
-	ss.EpcAvgSSE = 0
+	ss.TrlUnitErr = 0
+	ss.EpcUnitErr = 0
 	ss.EpcPctErr = 0
 	ss.EpcCosDiff = 0
 }
@@ -494,18 +499,17 @@ func (ss *Sim) InitStats() {
 // different time-scales over which stats could be accumulated etc.
 // You can also aggregate directly from log data, as is done for testing stats
 func (ss *Sim) TrialStats(accum bool) {
-	out := ss.Net.LayerByName("Output").(leabra.LeabraLayer).AsLeabra()
+	out := ss.Net.LayerByName("Output").(axon.AxonLayer).AsAxon()
 	ss.TrlCosDiff = float64(out.CosDiff.Cos)
-	ss.TrlSSE, ss.TrlAvgSSE = out.MSE(0.5) // 0.5 = per-unit tolerance -- right side of .5
-	if ss.TrlSSE > 0 {
+	ss.TrlUnitErr = out.PctUnitErr()
+	if ss.TrlUnitErr > 0 {
 		ss.TrlErr = 1
 	} else {
 		ss.TrlErr = 0
 	}
 	if accum {
 		ss.SumErr += ss.TrlErr
-		ss.SumSSE += ss.TrlSSE
-		ss.SumAvgSSE += ss.TrlAvgSSE
+		ss.SumUnitErr += ss.TrlUnitErr
 		ss.SumCosDiff += ss.TrlCosDiff
 	}
 }
@@ -581,7 +585,7 @@ func (ss *Sim) TestTrial(returnOnChg bool) {
 	// Query counters FIRST
 	_, _, chg := ss.TestEnv.Counter(env.Epoch)
 	if chg {
-		if ss.ViewOn && ss.TestUpdt > leabra.AlphaCycle {
+		if ss.ViewOn && ss.TestUpdt > axon.AlphaCycle {
 			ss.UpdateView(false)
 		}
 		ss.LogTstEpc(ss.TstEpcLog)
@@ -733,10 +737,8 @@ func (ss *Sim) LogTrnEpc(dt *etable.Table) {
 	epc := ss.TrainEnv.Epoch.Prv          // this is triggered by increment so use previous value
 	nt := float64(len(ss.TrainEnv.Order)) // number of trials in view
 
-	ss.EpcSSE = ss.SumSSE / nt
-	ss.SumSSE = 0
-	ss.EpcAvgSSE = ss.SumAvgSSE / nt
-	ss.SumAvgSSE = 0
+	ss.EpcUnitErr = ss.SumUnitErr / nt
+	ss.SumUnitErr = 0
 	ss.EpcPctErr = float64(ss.SumErr) / nt
 	ss.SumErr = 0
 	ss.EpcPctCor = 1 - ss.EpcPctErr
@@ -761,8 +763,7 @@ func (ss *Sim) LogTrnEpc(dt *etable.Table) {
 
 	dt.SetCellFloat("Run", row, float64(ss.TrainEnv.Run.Cur))
 	dt.SetCellFloat("Epoch", row, float64(epc))
-	dt.SetCellFloat("SSE", row, ss.EpcSSE)
-	dt.SetCellFloat("AvgSSE", row, ss.EpcAvgSSE)
+	dt.SetCellFloat("UnitErr", row, ss.EpcUnitErr)
 	dt.SetCellFloat("PctErr", row, ss.EpcPctErr)
 	dt.SetCellFloat("PctCor", row, ss.EpcPctCor)
 	dt.SetCellFloat("CosDiff", row, ss.EpcCosDiff)
@@ -770,14 +771,14 @@ func (ss *Sim) LogTrnEpc(dt *etable.Table) {
 
 	tst := ss.TstEpcLog
 	if tst.Rows > 0 {
-		cpc := []string{"SSE", "AvgSSE", "PctErr", "PctCor", "CosDiff"}
+		cpc := []string{"UnitErr", "PctErr", "PctCor", "CosDiff"}
 		for _, cn := range cpc {
 			dt.SetCellFloat("Tst"+cn, row, tst.CellFloat(cn, tst.Rows-1))
 		}
 	}
 
 	for _, lnm := range ss.LayStatNms {
-		ly := ss.Net.LayerByName(lnm).(leabra.LeabraLayer).AsLeabra()
+		ly := ss.Net.LayerByName(lnm).(axon.AxonLayer).AsAxon()
 		dt.SetCellFloat(ly.Nm+"_ActAvg", row, float64(ly.Pools[0].ActAvg.ActPAvgEff))
 	}
 
@@ -802,14 +803,13 @@ func (ss *Sim) ConfigTrnEpcLog(dt *etable.Table) {
 	sch := etable.Schema{
 		{"Run", etensor.INT64, nil, nil},
 		{"Epoch", etensor.INT64, nil, nil},
-		{"SSE", etensor.FLOAT64, nil, nil},
-		{"AvgSSE", etensor.FLOAT64, nil, nil},
+		{"UnitErr", etensor.FLOAT64, nil, nil},
 		{"PctErr", etensor.FLOAT64, nil, nil},
 		{"PctCor", etensor.FLOAT64, nil, nil},
 		{"CosDiff", etensor.FLOAT64, nil, nil},
 		{"PerTrlMSec", etensor.FLOAT64, nil, nil},
 	}
-	cpc := []string{"SSE", "AvgSSE", "PctErr", "PctCor", "CosDiff"}
+	cpc := []string{"UnitErr", "PctErr", "PctCor", "CosDiff"}
 	for _, cn := range cpc {
 		sch = append(sch, etable.Column{"Tst" + cn, etensor.FLOAT64, nil, nil})
 	}
@@ -820,20 +820,19 @@ func (ss *Sim) ConfigTrnEpcLog(dt *etable.Table) {
 }
 
 func (ss *Sim) ConfigTrnEpcPlot(plt *eplot.Plot2D, dt *etable.Table) *eplot.Plot2D {
-	plt.Params.Title = "Leabra Combinatorial Generalization Epoch Plot"
+	plt.Params.Title = "Axon Combinatorial Generalization Epoch Plot"
 	plt.Params.XAxisCol = "Epoch"
 	plt.SetTable(dt)
 	// order of params: on, fixMin, min, fixMax, max
 	plt.SetColParams("Run", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("Epoch", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
-	plt.SetColParams("SSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
-	plt.SetColParams("AvgSSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
+	plt.SetColParams("UnitErr", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("PctErr", eplot.On, eplot.FixMin, 0, eplot.FixMax, 1)  // default plot
 	plt.SetColParams("PctCor", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1) // default plot
 	plt.SetColParams("CosDiff", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1)
 	plt.SetColParams("PerTrlMSec", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 
-	cpc := []string{"SSE", "AvgSSE", "PctErr", "PctCor", "CosDiff"}
+	cpc := []string{"UnitErr", "PctErr", "PctCor", "CosDiff"}
 	for _, cn := range cpc {
 		if cn == "PctErr" {
 			plt.SetColParams("Tst"+cn, eplot.On, eplot.FixMin, 0, eplot.FixMax, .5)
@@ -855,8 +854,8 @@ func (ss *Sim) ConfigTrnEpcPlot(plt *eplot.Plot2D, dt *etable.Table) *eplot.Plot
 // log always contains number of testing items
 func (ss *Sim) LogTstTrl(dt *etable.Table) {
 	epc := ss.TrainEnv.Epoch.Prv // this is triggered by increment so use previous value
-	inp := ss.Net.LayerByName("Input").(leabra.LeabraLayer).AsLeabra()
-	out := ss.Net.LayerByName("Output").(leabra.LeabraLayer).AsLeabra()
+	inp := ss.Net.LayerByName("Input").(axon.AxonLayer).AsAxon()
+	out := ss.Net.LayerByName("Output").(axon.AxonLayer).AsAxon()
 
 	trl := ss.TestEnv.Trial.Cur
 	row := trl
@@ -870,12 +869,11 @@ func (ss *Sim) LogTstTrl(dt *etable.Table) {
 	dt.SetCellFloat("Trial", row, float64(trl))
 	dt.SetCellString("TrialName", row, ss.TestEnv.String())
 	dt.SetCellFloat("Err", row, ss.TrlErr)
-	dt.SetCellFloat("SSE", row, ss.TrlSSE)
-	dt.SetCellFloat("AvgSSE", row, ss.TrlAvgSSE)
+	dt.SetCellFloat("UnitErr", row, ss.TrlUnitErr)
 	dt.SetCellFloat("CosDiff", row, ss.TrlCosDiff)
 
 	for _, lnm := range ss.LayStatNms {
-		ly := ss.Net.LayerByName(lnm).(leabra.LeabraLayer).AsLeabra()
+		ly := ss.Net.LayerByName(lnm).(axon.AxonLayer).AsAxon()
 		dt.SetCellFloat(ly.Nm+" ActM.Avg", row, float64(ly.Pools[0].ActM.Avg))
 	}
 	ivt := ss.ValsTsr("Input")
@@ -894,8 +892,8 @@ func (ss *Sim) LogTstTrl(dt *etable.Table) {
 }
 
 func (ss *Sim) ConfigTstTrlLog(dt *etable.Table) {
-	inp := ss.Net.LayerByName("Input").(leabra.LeabraLayer).AsLeabra()
-	out := ss.Net.LayerByName("Output").(leabra.LeabraLayer).AsLeabra()
+	inp := ss.Net.LayerByName("Input").(axon.AxonLayer).AsAxon()
+	out := ss.Net.LayerByName("Output").(axon.AxonLayer).AsAxon()
 
 	dt.SetMetaData("name", "TstTrlLog")
 	dt.SetMetaData("desc", "Record of testing per input pattern")
@@ -909,8 +907,7 @@ func (ss *Sim) ConfigTstTrlLog(dt *etable.Table) {
 		{"Trial", etensor.INT64, nil, nil},
 		{"TrialName", etensor.STRING, nil, nil},
 		{"Err", etensor.FLOAT64, nil, nil},
-		{"SSE", etensor.FLOAT64, nil, nil},
-		{"AvgSSE", etensor.FLOAT64, nil, nil},
+		{"UnitErr", etensor.FLOAT64, nil, nil},
 		{"CosDiff", etensor.FLOAT64, nil, nil},
 	}
 	for _, lnm := range ss.LayStatNms {
@@ -925,7 +922,7 @@ func (ss *Sim) ConfigTstTrlLog(dt *etable.Table) {
 }
 
 func (ss *Sim) ConfigTstTrlPlot(plt *eplot.Plot2D, dt *etable.Table) *eplot.Plot2D {
-	plt.Params.Title = "Leabra Combinatorial Generalization Test Trial Plot"
+	plt.Params.Title = "Axon Combinatorial Generalization Test Trial Plot"
 	plt.Params.XAxisCol = "Trial"
 	plt.SetTable(dt)
 	// order of params: on, fixMin, min, fixMax, max
@@ -934,8 +931,7 @@ func (ss *Sim) ConfigTstTrlPlot(plt *eplot.Plot2D, dt *etable.Table) *eplot.Plot
 	plt.SetColParams("Trial", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("TrialName", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("Err", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
-	plt.SetColParams("SSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
-	plt.SetColParams("AvgSSE", eplot.On, eplot.FixMin, 0, eplot.FloatMax, 0)
+	plt.SetColParams("UnitErr", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("CosDiff", eplot.On, eplot.FixMin, 0, eplot.FixMax, 1)
 
 	for _, lnm := range ss.LayStatNms {
@@ -963,21 +959,19 @@ func (ss *Sim) LogTstEpc(dt *etable.Table) {
 	// data table, instead of incrementing on the Sim
 	dt.SetCellFloat("Run", row, float64(ss.TrainEnv.Run.Cur))
 	dt.SetCellFloat("Epoch", row, float64(epc))
-	dt.SetCellFloat("SSE", row, agg.Sum(tix, "SSE")[0])
-	dt.SetCellFloat("AvgSSE", row, agg.Mean(tix, "AvgSSE")[0])
+	dt.SetCellFloat("UnitErr", row, agg.Sum(tix, "UnitErr")[0])
 	dt.SetCellFloat("PctErr", row, agg.Mean(tix, "Err")[0])
 	dt.SetCellFloat("PctCor", row, 1-agg.Mean(tix, "Err")[0])
 	dt.SetCellFloat("CosDiff", row, agg.Mean(tix, "CosDiff")[0])
 
 	trlix := etable.NewIdxView(trl)
 	trlix.Filter(func(et *etable.Table, row int) bool {
-		return et.CellFloat("SSE", row) > 0 // include error trials
+		return et.CellFloat("UnitErr", row) > 0 // include error trials
 	})
 	ss.TstErrLog = trlix.NewTable()
 
 	allsp := split.All(trlix)
-	split.Agg(allsp, "SSE", agg.AggSum)
-	split.Agg(allsp, "AvgSSE", agg.AggMean)
+	split.Agg(allsp, "UnitErr", agg.AggSum)
 	split.Agg(allsp, "InAct", agg.AggMean)
 	split.Agg(allsp, "OutActM", agg.AggMean)
 	split.Agg(allsp, "OutActP", agg.AggMean)
@@ -999,8 +993,7 @@ func (ss *Sim) ConfigTstEpcLog(dt *etable.Table) {
 	sch := etable.Schema{
 		{"Run", etensor.INT64, nil, nil},
 		{"Epoch", etensor.INT64, nil, nil},
-		{"SSE", etensor.FLOAT64, nil, nil},
-		{"AvgSSE", etensor.FLOAT64, nil, nil},
+		{"UnitErr", etensor.FLOAT64, nil, nil},
 		{"PctErr", etensor.FLOAT64, nil, nil},
 		{"PctCor", etensor.FLOAT64, nil, nil},
 		{"CosDiff", etensor.FLOAT64, nil, nil},
@@ -1009,14 +1002,13 @@ func (ss *Sim) ConfigTstEpcLog(dt *etable.Table) {
 }
 
 func (ss *Sim) ConfigTstEpcPlot(plt *eplot.Plot2D, dt *etable.Table) *eplot.Plot2D {
-	plt.Params.Title = "Leabra Combinatorial Generalization Testing Epoch Plot"
+	plt.Params.Title = "Axon Combinatorial Generalization Testing Epoch Plot"
 	plt.Params.XAxisCol = "Epoch"
 	plt.SetTable(dt)
 	// order of params: on, fixMin, min, fixMax, max
 	plt.SetColParams("Run", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("Epoch", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
-	plt.SetColParams("SSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
-	plt.SetColParams("AvgSSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
+	plt.SetColParams("UnitErr", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("PctErr", eplot.On, eplot.FixMin, 0, eplot.FixMax, 1)  // default plot
 	plt.SetColParams("PctCor", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1) // default plot
 	plt.SetColParams("CosDiff", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1)
@@ -1035,7 +1027,7 @@ func (ss *Sim) LogTstCyc(dt *etable.Table, cyc int) {
 
 	dt.SetCellFloat("Cycle", cyc, float64(cyc))
 	for _, lnm := range ss.LayStatNms {
-		ly := ss.Net.LayerByName(lnm).(leabra.LeabraLayer).AsLeabra()
+		ly := ss.Net.LayerByName(lnm).(axon.AxonLayer).AsAxon()
 		dt.SetCellFloat(ly.Nm+" Ge.Avg", cyc, float64(ly.Pools[0].Inhib.Ge.Avg))
 		dt.SetCellFloat(ly.Nm+" Act.Avg", cyc, float64(ly.Pools[0].Inhib.Act.Avg))
 	}
@@ -1064,7 +1056,7 @@ func (ss *Sim) ConfigTstCycLog(dt *etable.Table) {
 }
 
 func (ss *Sim) ConfigTstCycPlot(plt *eplot.Plot2D, dt *etable.Table) *eplot.Plot2D {
-	plt.Params.Title = "Leabra Combinatorial Generalization Test Cycle Plot"
+	plt.Params.Title = "Axon Combinatorial Generalization Test Cycle Plot"
 	plt.Params.XAxisCol = "Cycle"
 	plt.SetTable(dt)
 	// order of params: on, fixMin, min, fixMax, max
@@ -1103,8 +1095,7 @@ func (ss *Sim) LogRun(dt *etable.Table) {
 	dt.SetCellFloat("Run", row, float64(run))
 	dt.SetCellString("Params", row, params)
 	dt.SetCellFloat("FirstZero", row, float64(ss.FirstZero))
-	dt.SetCellFloat("SSE", row, agg.Mean(epcix, "SSE")[0])
-	dt.SetCellFloat("AvgSSE", row, agg.Mean(epcix, "AvgSSE")[0])
+	dt.SetCellFloat("UnitErr", row, agg.Mean(epcix, "UnitErr")[0])
 	dt.SetCellFloat("PctErr", row, agg.Mean(epcix, "PctErr")[0])
 	dt.SetCellFloat("PctCor", row, agg.Mean(epcix, "PctCor")[0])
 	dt.SetCellFloat("CosDiff", row, agg.Mean(epcix, "CosDiff")[0])
@@ -1137,8 +1128,7 @@ func (ss *Sim) ConfigRunLog(dt *etable.Table) {
 		{"Run", etensor.INT64, nil, nil},
 		{"Params", etensor.STRING, nil, nil},
 		{"FirstZero", etensor.FLOAT64, nil, nil},
-		{"SSE", etensor.FLOAT64, nil, nil},
-		{"AvgSSE", etensor.FLOAT64, nil, nil},
+		{"UnitErr", etensor.FLOAT64, nil, nil},
 		{"PctErr", etensor.FLOAT64, nil, nil},
 		{"PctCor", etensor.FLOAT64, nil, nil},
 		{"CosDiff", etensor.FLOAT64, nil, nil},
@@ -1147,14 +1137,13 @@ func (ss *Sim) ConfigRunLog(dt *etable.Table) {
 }
 
 func (ss *Sim) ConfigRunPlot(plt *eplot.Plot2D, dt *etable.Table) *eplot.Plot2D {
-	plt.Params.Title = "Leabra Combinatorial Generalization Run Plot"
+	plt.Params.Title = "Axon Combinatorial Generalization Run Plot"
 	plt.Params.XAxisCol = "Run"
 	plt.SetTable(dt)
 	// order of params: on, fixMin, min, fixMax, max
 	plt.SetColParams("Run", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("FirstZero", eplot.On, eplot.FixMin, 0, eplot.FloatMax, 0) // default plot
-	plt.SetColParams("SSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
-	plt.SetColParams("AvgSSE", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
+	plt.SetColParams("UnitErr", eplot.Off, eplot.FixMin, 0, eplot.FloatMax, 0)
 	plt.SetColParams("PctErr", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1)
 	plt.SetColParams("PctCor", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1)
 	plt.SetColParams("CosDiff", eplot.Off, eplot.FixMin, 0, eplot.FixMax, 1)
@@ -1170,9 +1159,9 @@ func (ss *Sim) ConfigGui() *gi.Window {
 	height := 1200
 
 	gi.SetAppName("combgen")
-	gi.SetAppAbout(`This tests for combinatorial generalization in Leabra. See <a href="https://github.com/emer/emergent">emergent on GitHub</a>.</p>`)
+	gi.SetAppAbout(`This tests for combinatorial generalization in Axon. See <a href="https://github.com/emer/emergent">emergent on GitHub</a>.</p>`)
 
-	win := gi.NewMainWindow("combgen", "Leabra Combinatorial Generalization", width, height)
+	win := gi.NewMainWindow("combgen", "Axon Combinatorial Generalization", width, height)
 	ss.Win = win
 
 	vp := win.WinViewport2D()
@@ -1314,7 +1303,7 @@ func (ss *Sim) ConfigGui() *gi.Window {
 
 	tbar.AddAction(gi.ActOpts{Label: "README", Icon: "file-markdown", Tooltip: "Opens your browser on the README file that contains instructions for how to run this model."}, win.This(),
 		func(recv, send ki.Ki, sig int64, data interface{}) {
-			gi.OpenURL("https://github.com/emer/leabra/blob/master/examples/combgen/README.md")
+			gi.OpenURL("https://github.com/emer/axon/blob/master/examples/combgen/README.md")
 		})
 
 	vp.UpdateEndNoSig(updt)
