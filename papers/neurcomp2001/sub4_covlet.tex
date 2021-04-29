@@ -1,0 +1,148 @@
+\documentclass [11pt]{letter}
+\usepackage {times,epsf}
+\oddsidemargin 0pt
+\evensidemargin 0pt
+\headheight 12pt
+\headsep .5in
+\topmargin -.75in
+\footskip .75in
+\textheight 9in
+\textwidth 6.5in
+\parskip 10pt
+%\parindent 15pt
+
+% pick one of the following
+%\address{2585 Juniper Ave\\
+%Boulder, CO  80304\\ (303) 448-1810\\}
+
+%\address{Department of Psychology\\
+%Campus Box 345\\
+%University of Colorado at Boulder\\
+%Boulder, CO 80309-0345\\ (303) 492-0054\\ (303) 492-2964 (fax)\\
+%oreilly@psych.colorado.edu}
+
+% for letterhead
+\address{\vspace*{.5in}}
+
+\signature{Randall O'Reilly\\Assistant Professor, Psychology\\
+  oreilly@psych.colorado.edu}
+%\signature{Randall O'Reilly}
+
+\begin{document}
+
+\begin{letter}
+% replace address of sender here
+{Dr. Terrence Sejnowski\\
+The Salk Institute --- CNL\\
+10010 North Torrey Pines Road\\
+La Jolla, CA 92037\\}
+
+\opening{Dear Dr. Sejnowski:}
+
+Enclosed are three copies of manuscript number 1992 entitled,
+``Generalization in Interactive Networks: The Benefits of Inhibitory
+Competition and Hebbian Learning'' that I am re-submitting for
+publication in {\em Neural Computation}.  As before, the manuscript
+has been formatted for the convenience of the reviewers, with figures
+in place --- a version suitable for copy editing is available upon
+request.
+
+In the third revision, I have addressed the first reviewer's minor
+comments, and the second and third reviewer's more major comments.
+Specifically: 
+
+\begin{enumerate}
+\item Regarding spurious nature of ``spurious attractors'' (raised by
+  reviewers 2 and 3) I showed that the GeneRec network does not tend
+  to produce the originally trained patterns, producing instead 80\%
+  malformed (i.e., uninterpretable) outputs.  This supports the notion
+  that the nonlinear attractors produced by GeneRec are truly spurious
+  attractors, countering the arguments of reviewers 2 and 3 (see pages
+  14-15 for details).
+  
+\item Regarding reviewer 3's questions on the exception network: I
+  provided further analysis of the exception network, showing
+  generalization for regulars and exceptions separately --- Leabra
+  showed better generalization in both of these cases compared to
+  backprop and especially GeneRec (although it did perform better on
+  regulars compared to exceptions).  I also added a table of data and
+  somewhat more explication about the results from a large-scale
+  spelling-to-sound model, which is in press elsewhere, where leabra
+  generalized at the same level as humans and prior backprop models to
+  nonwords based on complex interdependencies among the letter
+  elements.  These results counter the suspicions that Leabra is only
+  good for simple, regular mappings (see pages 29-31 for details).
+  
+\item Regarding reviewer 2 \& Cottrell's comments on overfitting, the
+  discussion of hidden layer size and overfitting has been modified to
+  avoid the claim that overfitting is impossible in a deterministic
+  task.  Instead, the results are interpreted as simply showing that
+  the benefits of a larger sample of idiosyncratic hidden
+  representations outweighs any overfitting costs.  This is really not
+  the focus of the paper, and it simply doesn't make sense to make
+  stronger claims than are necessary.
+  
+\item It appears from the comments of reviewer 2 that they have
+  overinterpreted the claims of the paper.  I am fully aware of the
+  BIAS VARIANCE tradeoff, and state right at the outset of the paper
+  that (emphasis in original):
+  
+  ``This tradeoff emphasizes the fact that biases {\em that are
+    appropriate for the task} can greatly facilitate learning and
+  generalization by reducing the level of {\em variance}, where
+  variance reflects the extent to which parameters are
+  underconstrained by learning, and thus free to vary, causing random
+  errors in generalization.  .... However, inappropriate biases can
+  obviously hurt performance by introducing systematic errors, such
+  that there is no such thing as a single universally beneficial set
+  of biases (Wolpert, 1996a, b).  It is nevertheless possible that
+  mammalian cortical learning mechanisms have a set of biases that
+  facilitate learning and generalization in naturalistic environments
+  --- an important goal of the work described here is to make progress
+  in identifying such biases.''
+  
+  Thus, these biological constraints are not meant to be a panacea for
+  all ills, and the claim is merely that they appear to have some
+  utility as demonstrated and analyzed in this paper, and that they
+  thus may prove promising for understanding the ways in which the
+  human learning system is biased.
+  
+\item The second reviewer makes a big deal about the fact that the
+  backprop network beats the Leabra network on the digits task.  It
+  should have been clear from the very outset (e.g., the title) that
+  the entire point of the paper is about {\em interactive} networks.
+  Thus, the relevant comparison is between Leabra and GeneRec.  The
+  comparison with Bp is just there to demonstrate that interactivity
+  is causing problems for GeneRec relative to Bp.  I am satisfied that
+  Leabra produces roughly comparable generalization to Bp, which
+  actually seems to do fairly well in surprisingly many cases.
+  
+\item Cottrell followed up on a previous comment by reviewer 2 that
+  suggested that earlier biologically plausible BP models are the same
+  as GeneRec -- except for the CHL/DBM models that are specifically
+  discussed, these earlier models are not the same!  The Zipser and
+  Tesauro models use a global error signal (computed at the output)
+  that is broadcast to each synapse, which is very different from
+  computing correct backprop gradients at each synapse -- their models
+  are not interactive, and are computationally much weaker learners
+  than backprop or GeneRec.  Thus, they are not really of relevance to
+  this paper, and are already discussed in the O'Reilly, 1996 paper
+  that develops the GeneRec ideas, so I don't think it is worth the
+  distraction of introducing then ignoring them here.
+
+\end{enumerate}
+
+In summary, these revisions have strengthened the central arguments of
+the paper (and clarified my interpretations of the exceptions data),
+and I am grateful for the reviewer's having encouraged these
+improvements.
+
+\closing{Sincerely,}
+
+\end{letter}
+\end{document}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 

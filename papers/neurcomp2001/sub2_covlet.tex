@@ -1,0 +1,282 @@
+\documentclass [11pt]{letter}
+\usepackage {times,epsf}
+\oddsidemargin 0pt
+\evensidemargin 0pt
+\headheight 12pt
+\headsep .5in
+\topmargin -.75in
+\footskip .75in
+\textheight 9in
+\textwidth 6.5in
+\parskip 10pt
+%\parindent 15pt
+
+% pick one of the following
+%\address{2585 Juniper Ave\\
+%Boulder, CO  80304\\ (303) 448-1810\\}
+
+%\address{Department of Psychology\\
+%Campus Box 345\\
+%University of Colorado at Boulder\\
+%Boulder, CO 80309-0345\\ (303) 492-0054\\ (303) 492-2964 (fax)\\
+%oreilly@psych.colorado.edu}
+
+% for letterhead
+\address{\vspace*{.5in}}
+
+\signature{Randall O'Reilly\\Assistant Professor, Psychology\\
+  oreilly@psych.colorado.edu}
+%\signature{Randall O'Reilly}
+
+\begin{document}
+
+\begin{letter}
+% replace address of sender here
+{Dr. Terrence Sejnowski\\
+The Salk Institute --- CNL\\
+10010 North Torrey Pines Road\\
+La Jolla, CA 92037\\}
+
+\opening{Dear Dr. Sejnowski:}
+
+Enclosed are three copies of manuscript number 1992 entitled,
+``Generalization in Interactive Networks: The Benefits of Inhibitory
+Competition and Hebbian Learning'' that I am re-submitting for
+publication in {\em Neural Computation}.  As before, the manuscript
+has been formatted for the convenience of the reviewers, with figures
+in place --- a version suitable for copy editing is available upon
+request.
+
+The two reviewer's comments were very helpful, and have stimulated me
+to produce what I hope is a more satisfactory manuscript.  The first
+reviewer, Gary Cottrell, had one major problem with the original
+paper, and a large number of more detailed comments that were very
+useful and much appreciated.  Gary's main problem was that there was
+insufficient detail regarding the Leabra algorithm, with a corollary
+that the algorithm seemed too complex.  In the revision, the details
+are now spelled out completely.  In most cases, the (previously
+underspecified) simulations were actually simpler and more
+straightforward than some of Gary's suspicions.  Furthermore, I added
+an additional simulation with some exception cases to address his
+major complaint about the idea that Leabra was overly biased towards
+regular mappings.  In short, I was able to address almost all of Gary
+Cottrell's comments in the revision.
+
+The second reviewer's comments were somewhat more difficult to
+address.  One major complaint was that any discussion of biological
+plausibility is premature at this point.  At the risk of offending the
+reviewer, I couldn't disagree more strongly with this reaction.
+Perhaps many years ago this would have been a valid response, but to
+persist in ignoring very well established biological facts at this
+point would be suicidal for the field, at least the component of it
+that values the term ``neural'' in ``neural computation.''  The
+biological features incorporated into the Leabra algorithm are beyond
+dispute --- the cortex is bidirectionally connected, and the
+inhibitory interneurons play a critical role in regulating overall
+levels of activation carried by excitatory pyramidal neurons.  Of
+course, it is always possible that some other, yet undiscovered
+biological features are also critical for neural computation, but this
+should not prevent us from exploring the computational properties of
+those biological features which are very well known at this point.
+So, I will just have to stand my ground on this issue.
+
+The second reviewer's other main reaction is that although the
+reviewer acknowledges that an empirical demonstration could be useful
+in establishing the claims of the paper, they felt that the
+demonstration provided was too ``ad hoc.''  Furthermore, there is a
+suggestion that a more theoretical approach could be taken.  As for
+the possibility of a theoretical treatment, I agree that that would be
+great, but unfortunately I think the factors in question are somewhat
+daunting --- nonlinear attractor dynamics in recurrent neural networks
+do not (to my knowledge) fit well within existing analytic schemes for
+treating generalization.  I would welcome any references or
+suggestions that contradict this impression.  Also, I would just note
+that I am in fact ``sensitive to the bias/variance tradeoff'' (e.g.,
+citing the seminal Geman et al paper on this topic in the motivation
+for introducing biases into recurrent networks) as the reviewer
+suggests later in the review, in contradiction to the earlier
+statement that ``the lack of theory in this paper makes one wonder
+whether the author is familiar with Bias/Variance tradeoff..''
+
+There are two dimensions that need to be systematically covered to
+make the empirical point convincing (and not ``ad hoc''): the
+algorithm and the task.  I would argue that this paper does a very
+systematic job with the algorithmic coverage, exploring the
+incremental effects of a set of factors thought to be important across
+a range of different algorithms and algorithm variants.  The
+reviewer's comment about the number of hidden units in the recurrent
+nets reveals a somewhat incomplete understanding of the data presented
+in Figure 3 (which shows the generalization performance of the
+recurrent net as a function of hidden unit size), and this textual
+summary of the point: ``Manipulations of hidden units and weight decay
+had qualitatively similar effects on both types of networks, such that
+the interactive network appears to behave just like the feedforward
+one, but with a greatly elevated offset in generalization errors.''
+So, it is clear that I systematically ran the hidden unit (and weight
+decay) manipulation on all the networks, contrary to the reviewer's
+suggestion that ``we are presented one task, a strange set of hidden
+unit values and an ad hoc number of variations that eventually produce
+the desired result.''
+
+One further point that seems to have gone relatively unappreciated by
+the second reviewer was the value of the hidden unit analysis for
+substantiating the specific mechanistic argument about why
+generalization suffers in interactive networks, and how this is
+remedied in the Leabra network.  This provides direct, converging
+evidence, and strongly counters the suggestion that the results are
+``ad hoc''.  Furthermore, the Almeida-Pineda backprop results provide
+converging evidence that the feedback weight magnitude, settling time,
+and generalization performance are all highly (around .98) correlated,
+which is strong evidence that interactivity is impairing
+generalization. 
+
+While I would argue that the algorithm-level coverage is very
+systematic and far from ad-hoc, it is more difficult to claim that the
+task-level coverage is equally systematic, for the simple reason that
+there is only one task explored here.  I have two reactions to this.
+First, the task used was carefully chosen according to
+clearly-enunciated principles, based on tasks used in previous studies
+of generalization, and not simply selected out of the blue.  It should
+be clear that one could substitute different detailed patterns into
+this task and come up with a spelling-to-sound task, or many other
+kinds of systematic mapping tasks.  Second, it should also be clear
+that nothing in the algorithms explored should depend on the details
+of these patterns or the task -- both the algorithms and task are
+clearly and independently motivated from first principles, not thrown
+together as an ad-hoc package of ``the one thing that happened to
+work''.
+
+Therefore, although I agree that in principle it would be nice to
+report generalization results from a variety of tasks, in practice the
+present results are of sufficiently general importance to stand on
+their own.  The alternative of including other tasks would
+unnecessarily lengthen an already long paper.  Having run many
+different tasks comparing the algorithms discussed in this paper
+(e.g., in my thesis and other work), I am personally very confident of
+the generality of the results, and appropriate references to this
+other work are now included.  Furthermore, the revision now includes a
+task with exceptions, extending the scope of tasks covered somewhat.
+
+Finally, I'd like to address the fact that both reviewers appear to
+have the same nagging feeling that the paper, and in particular the
+Leabra algorithm, is somehow contrived and over-complex.  Indeed, one
+might even go so far as to interpret the ``ad hoc'' comments of the
+second reviewer as being really driven by some discomfort with Leabra,
+which somehow got mis-attributed to the actual specifics focused on in
+the review (which I hope the above comments have successfully
+countered).  Of course I appreciate the general sentiment that simple
+is better, and I have done as much as I can to make the Leabra
+algorithm as simple as possible {\bf while maintaining its important
+  functional properties} --- everyone knows that this is a difficult
+tradeoff, etc..  Nobody knows how complex the algorithm implemented by
+the brain is, so restricting one's search to only the simplest ideas
+is not likely to be productive --- of course if a simpler thing does
+the same thing as a more complex one, then by all means the simpler
+should be used.. I have gone into more extensive detail justifying the
+details of the algorithm in O'Reilly \& Munakata (in press) -- the
+details that are there are important!
+
+The bottom line is that, although the present application of the
+algorithm demonstrates the advantage of some of its properties for
+improving generalization, a more complete justification of the
+algorithm's features according to biological, psychological, and
+computational arguments requires much more space than a single
+journal article --- indeed, I have just written a book about it
+(O'Reilly \& Munakata, in press, MIT Press).  Therefore, I hope that
+this paper can be viewed as a piece of a larger project, the scope of
+which is summarized in the book and reported in several submitted or
+in preparation journal articles.  It seems a worthy goal to use the
+same mechanism in this paper as is used elsewhere, instead of trying
+to come up with one-off mechanisms specifically tailored to the subset
+of constraints present in the current task.  Indeed, in the book, this
+one algorithm, typically using the same parameters, is applied in 44
+different simulations of cognitive phenomena including perception,
+learning and memory, language, and higher-level cognition.  This
+should help to allay fears that the algorithm was contrived for the
+present task.
+
+What follows is a detailed ``change log'' for the paper.
+
+\begin{itemize}
+\item Reorganized introduction to be a bit more systematic and
+  organized with sub-headers.
+
+\item Corrected description of Noelle \& Cottrell (1996)
+
+\item Made the bias/variance motivations for adding competition and
+  Hebbian learning more explicit (Reviewer 2), and addressed Gary's
+  concerns.
+
+\item Clarified that same algorithm (Leabra) has been widely applied so as
+  to avoid the ``ad hoc'' problem.
+  
+\item Clarified implementation of weight decay --- I used two simple,
+  standard forms of constantly-applied decay.  Added disclaimer that
+  other forms of weight decay may perform better.
+
+\item Fixed Hinton diagram figure captions to address Gary's confusions.
+
+\item Clarified the logic of the hidden unit analysis pointing to
+  attractor dynamics as the source of generalization problems in
+  interactive networks (Gary).
+
+\item Clarified average feedback weight magnitude measure and settling
+  time measure (Gary).
+
+\item Added correlation measures for feedback weights and settling time
+  with generalization scores (very strong - .9705 and .9998).
+
+\item Clarified that Hebbian learning is computed on plus phase acts
+  (Gary). 
+ 
+\item Clarified conditional probability explanation of Hebbian learning in
+  text and provided detailed derivation in Appendix (Gary).
+
+\item Clarified that the theta parameter in the contrast-enhancement
+  function, though multiplicative, has an offset-like function in
+  moving the center of the sigmoidal function.  Also added a graph of
+  this function. 
+
+\item Added ``Generalization with Exceptions'' section to address Gary's
+  suggestion about ``rule of 78'' kind of simulation.  Results are
+  consistent with previous ones.
+
+Appendix:
+
+\item Added pseudocode (fits on one page, even double-spaced!)
+
+\item Explained $\overline{g_c}$.  Gary, I don't understand relevance of
+  1/(1+1/0) = 0 comment.
+  
+\item In discussing two different versions of kWTA, now report results
+  for just using the basic version, which are significantly worse than
+  the more appropriate case where the hidden layer has more
+  flexibility (though they are still better than Bp).  I disagree with
+  Gary's comment that significantly worse results should be reported
+  just for the sake of a simplification when there are very clear
+  reasons for using the two different versions of kWTA for the two
+  different types of layers.  This is done in almost all Leabra
+  simulations that I run, and furthermore the q parameters are
+  standard defaults, so it would not be difficult for someone else to
+  replicate these results -- no parameter searching would be required.
+
+\item Discuss global knowledge issue of kwta and justify in terms of
+  approximation to actual inhibitory dynamics from inhibitory
+  interneurons.
+
+\item Specified ``normalized mixing constant'' and ``soft weight
+  bounding'' equations and parameters.
+\end{itemize}
+
+
+
+\closing{Sincerely,}
+
+\end{letter}
+\end{document}
+
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 

@@ -15,6 +15,7 @@ import (
 	"github.com/emer/emergent/patgen"
 	"github.com/emer/etable/etable"
 	"github.com/emer/etable/etensor"
+	"github.com/emer/etable/metric"
 	"github.com/goki/gi/gi"
 	"github.com/goki/ki/kit"
 )
@@ -71,21 +72,21 @@ type CombEnv struct {
 func (ev *CombEnv) Name() string { return ev.Nm }
 func (ev *CombEnv) Desc() string { return ev.Dsc }
 
-// Defaults sets initial default params
+// Defaults sets initial default params -- mainly for rand pats
 func (ev *CombEnv) Defaults() {
+	ev.NPats = 45 // keep consistent with lines
 	ev.RndPctOn = 0.2
 	ev.RndMinDiff = 0.5
 }
 
 // Config sets up the environment
-func (ev *CombEnv) Config(typ PatsType, test bool, patsz evec.Vec2i, npools, ntrain, ntest, npats int) {
+func (ev *CombEnv) Config(typ PatsType, test bool, patsz evec.Vec2i, npools, ntrain, ntest int) {
 	ev.PatsType = typ
 	ev.Test = test
 	ev.PatsSize = patsz
 	ev.NPools = npools
 	ev.NTrain = ntrain
 	ev.NTest = ntest
-	ev.NPats = npats
 
 	ev.ConfigPats()
 	ev.ConfigItems()
@@ -276,12 +277,25 @@ func (ev *CombEnv) State(element string) etensor.Tensor {
 	return nil
 }
 
-// ItemName returns name of item
-func (ev *CombEnv) ItemName(itms *etensor.Int, row int) string {
-	nm := ""
+// CurItems returns the list of current items for each pool
+// based on the current Trial counter -- returns row number too.
+func (ev *CombEnv) CurItems() ([]int, int) {
+	row := 0
+	if ev.Trial.Cur >= 0 {
+		row = ev.Order[ev.Trial.Cur]
+	}
 	si := row * ev.NPools
+	if ev.Test {
+		return ev.TestItems.Values[si : si+ev.NPools], row
+	}
+	return ev.TrainItems.Values[si : si+ev.NPools], row
+}
+
+// ItemName returns name of item
+func (ev *CombEnv) ItemName(itms []int) string {
+	nm := ""
 	for p := 0; p < ev.NPools; p++ {
-		pi := itms.Values[si+p]
+		pi := itms[p]
 		inm := ev.Pats.CellString("Name", pi)
 		nm += inm
 		if p < ev.NPools-1 {
@@ -293,15 +307,8 @@ func (ev *CombEnv) ItemName(itms *etensor.Int, row int) string {
 
 // String returns the current state as a string
 func (ev *CombEnv) String() string {
-	row := 0
-	if ev.Trial.Cur >= 0 {
-		row = ev.Order[ev.Trial.Cur]
-	}
-	if ev.Test {
-		return ev.ItemName(&ev.TestItems, row)
-	} else {
-		return ev.ItemName(&ev.TrainItems, row)
-	}
+	itms, _ := ev.CurItems()
+	return ev.ItemName(itms)
 }
 
 // Init is called to restart environment
@@ -326,10 +333,9 @@ func (ev *CombEnv) CopyPat(to, fm *etensor.Float32, pi int) {
 }
 
 // RenderItem sets the item
-func (ev *CombEnv) RenderItem(itms *etensor.Int, row int) {
-	si := row * ev.NPools
+func (ev *CombEnv) RenderItem(itms []int) {
 	for p := 0; p < ev.NPools; p++ {
-		pi := itms.Values[si+p]
+		pi := itms[p]
 		ip := ev.Pats.CellTensorIdx(1, pi).(*etensor.Float32)
 		op := ev.Pats.CellTensorIdx(2, pi).(*etensor.Float32)
 		ev.CopyPat(&ev.Input, ip, p)
@@ -339,15 +345,8 @@ func (ev *CombEnv) RenderItem(itms *etensor.Int, row int) {
 
 // RenderState renders the state
 func (ev *CombEnv) RenderState() {
-	row := 0
-	if ev.Trial.Cur >= 0 {
-		row = ev.Order[ev.Trial.Cur]
-	}
-	if ev.Test {
-		ev.RenderItem(&ev.TestItems, row)
-	} else {
-		ev.RenderItem(&ev.TrainItems, row)
-	}
+	itms, _ := ev.CurItems()
+	ev.RenderItem(itms)
 }
 
 // Step is called to advance the environment state
@@ -379,3 +378,42 @@ func (ev *CombEnv) Counter(scale env.TimeScales) (cur, prv int, chg bool) {
 
 // Compile-time check that implements Env interface
 var _ env.Env = (*CombEnv)(nil)
+
+// ClosestPat returns the closest Output pattern for
+// given activity pattern, using InvCorrelation.
+// returns the index, inverse correlation, and name.
+func (ev *CombEnv) ClosestPat(tsr *etensor.Float32) (int, float32, string) {
+	ocol := ev.Pats.ColByName("Output").(*etensor.Float32)
+	row, cor := metric.ClosestRow32(tsr, ocol, metric.InvCorrelation32)
+	nm := ev.Pats.CellString("Name", row)
+	return row, cor, nm
+}
+
+// OutputErr returns the error scoring for given output activity pattern
+// by finding the closest of the possible output patterns.
+// The activity tensor is 4D with individual patterns as the inner 2D,
+// and the pool index is the 2nd (X axis) outer index.
+// Returns the % error in terms of pools, average inverse correlation
+// across all pools, and the composite name from the activity pattern.
+func (ev *CombEnv) OutputErr(tsr *etensor.Float32) (float64, float64, string) {
+	aerr := float64(0)
+	acor := float64(0)
+	snm := ""
+	itms, _ := ev.CurItems()
+
+	for p := 0; p < ev.NPools; p++ {
+		ss := tsr.SubSpace([]int{0, p}).(*etensor.Float32)
+		row, cor, nm := ev.ClosestPat(ss)
+		acor += float64(cor)
+		snm += nm
+		if p < ev.NPools-1 {
+			snm += "_"
+		}
+		if row != itms[p] {
+			aerr += 1
+		}
+	}
+	aerr /= float64(ev.NPools)
+	acor /= float64(ev.NPools)
+	return aerr, acor, snm
+}

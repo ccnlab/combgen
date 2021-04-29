@@ -74,19 +74,19 @@ func (ev *CombEnv) Desc() string { return ev.Dsc }
 
 // Defaults sets initial default params
 func (ev *CombEnv) Defaults() {
+	ev.NPats = 45 // keep consistent with lines
 	ev.RndPctOn = 0.2
 	ev.RndMinDiff = 0.5
 }
 
 // Config sets up the environment
-func (ev *CombEnv) Config(typ PatsType, test bool, patsz evec.Vec2i, npools, ntrain, ntest, npats int) {
+func (ev *CombEnv) Config(typ PatsType, test bool, patsz evec.Vec2i, npools, ntrain, ntest int) {
 	ev.PatsType = typ
 	ev.Test = test
 	ev.PatsSize = patsz
 	ev.NPools = npools
 	ev.NTrain = ntrain
 	ev.NTest = ntest
-	ev.NPats = npats
 
 	ev.ConfigPats()
 	ev.ConfigItems()
@@ -225,7 +225,7 @@ func (ev *CombEnv) ConfigPats() {
 	case Random:
 		np := ev.PatsSize.X * ev.PatsSize.Y
 		nOn := patgen.NFmPct(ev.RndPctOn, np)
-		minDiff := patgen.NFmPct(ev.RndMinDiff, np)
+		minDiff := patgen.NFmPct(ev.RndMinDiff, nOn)
 		sch := etable.Schema{
 			{"Name", etensor.STRING, nil, nil},
 			{"Input", etensor.FLOAT32, []int{ev.PatsSize.Y, ev.PatsSize.X}, []string{"Y", "X"}},

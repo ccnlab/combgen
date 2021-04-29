@@ -1,0 +1,146 @@
+\documentclass [11pt]{letter}
+\usepackage {times,epsf}
+\oddsidemargin 0pt
+\evensidemargin 0pt
+\headheight 12pt
+\headsep .5in
+\topmargin -.75in
+\footskip .75in
+\textheight 9in
+\textwidth 6.5in
+\parskip 10pt
+%\parindent 15pt
+
+% pick one of the following
+%\address{2585 Juniper Ave\\
+%Boulder, CO  80304\\ (303) 448-1810\\}
+
+%\address{Department of Psychology\\
+%Campus Box 345\\
+%University of Colorado at Boulder\\
+%Boulder, CO 80309-0345\\ (303) 492-0054\\ (303) 492-2964 (fax)\\
+%oreilly@psych.colorado.edu}
+
+% for letterhead
+\address{\vspace*{.5in}}
+
+\signature{Randall O'Reilly\\Assistant Professor, Psychology\\
+  oreilly@psych.colorado.edu}
+%\signature{Randall O'Reilly}
+
+\begin{document}
+
+\begin{letter}
+% replace address of sender here
+{Dr. Terrence Sejnowski\\
+The Salk Institute --- CNL\\
+10010 North Torrey Pines Road\\
+La Jolla, CA 92037\\}
+
+\opening{Dear Dr. Sejnowski:}
+
+Enclosed are three copies of manuscript number 1992 entitled,
+``Generalization in Interactive Networks: The Benefits of Inhibitory
+Competition and Hebbian Learning'' that I am re-submitting for
+publication in {\em Neural Computation}.  As before, the manuscript
+has been formatted for the convenience of the reviewers, with figures
+in place --- a version suitable for copy editing is available upon
+request.
+
+The second round of reviews indicate some level of convergence on an
+acceptable paper.  In the revision, I have addressed the first
+reviewer's concern about the relatively poor generalization in the
+exceptions case by including the same number of {\em regular} training
+examples as in the fully regular case (100).  This improves
+generalization substantially.  Also, the generalization test set
+contains roughly 20\% irregulars that the network would not be
+expected to generalize on, so this must be subtracted (as is now noted
+in the text).  Thus, the resulting scores are very comparable.
+
+The second reviewer raises several problems, which I address in the
+paper and here.  The primary change to the paper is the inclusion of
+another generalization task (handwritten digit recognition) which
+shows exactly the same patterns as the other two with respect to the
+impaired generalization of recurrent networks, and the ability of the
+constraints in Leabra to remedy it.  However, because it is a noisy
+task, there is opportunity for overfitting, and indeed in this case
+larger hidden layers produce worse generalization, {\em but not in
+  Leabra}, because its constraints prevent overfitting.  This
+substantiates the basic story about hidden layer size.
+
+\begin{enumerate}
+\item Doesn't buy the ``spurious attractors in recurrent networks
+  impair generalization'' story, calling it ``at best a speculation
+  and at worst an obfuscation.''  I strongly disagree.  I specifically
+  emphasized in my last letter and in the revised paper that the
+  hidden unit analysis provides direct support for this contention.
+  The recurrent nets exhibit non-proportional hidden responses
+  indicative of spurious attractors.  Also, Gary's comments about this
+  explanation being more than just about attractors required emphasis
+  that it is the {\em spurious} attractors that are a problem, caused
+  by being underconstrained.
+  
+\item Claims that I need to ``show the opposite effect on a task where
+  a network with recurrence does better until the recurrence is
+  mitigated producing poorer generalization performance.''  I have no
+  idea what this means, and none of my colleagues were able to make
+  sense of it either.  My entire point is that recurrence leads to bad
+  generalization --- how can I be expected to show the opposite, and
+  how could this possibly prove my claim?
+  
+\item The reviewer again raises the issue of network SIZE.  Again,
+  s/he fails to appreciate that SMALLER networks do WORSE in the basic
+  tasks, so that cannot be an explanation for the effects of
+  recurrence in these tasks.
+   
+\item Only one task.  I added a second task, handwritten digit
+  recognition, which is noisy, and shows exactly the same patterns
+  except w.r.t. the hidden layer size, as predicted.
+  
+\item Bio-plausibility: It is not exactly clear what the upshot of the
+  argument is here, but two specific comments can be addressed:
+  \begin{enumerate}
+  \item ``it is a tricky tactic to try and use bio-plaus as an
+    independent variable that allows one to predict improved
+    generalization.''  This is not the argument.  The argument is that
+    some {\em specific} mechanisms that can be motivated by biological
+    plausibility lead to improved generalization in recurrent nets.  I
+    would hardly say that any given idea that happens to have some
+    kind of biological plausibility will necessarily lead to improved
+    generalization!!  (however, I do think the human brain exhibits
+    good generalization, so the actual combination of the actual
+    biological mechanisms does lead to effective generalization.)
+    Bio-plaus is invoked as an important motivation for considering
+    the specific mechanisms of Hebbian learning and inhibitory
+    competition as ways of improving generalization, as opposed to any
+    of a number of other possibilities which may not have a strong of
+    biological support.  Bio-plaus is also essential for motivating
+    the consideration of recurrent networks in the first place.
+  \item ``Or, are the authors saying that it is ALWAYS the case that
+    feedback (sans their Leabra innovations) leads to poorer
+    generalization? -- that can't be true!''  Perhaps this is the nub
+    of the problem --- this is in fact exactly what the claim of the
+    paper is!!  I can find no place in the paper where this was
+    qualified or that the reviewer could have been confused about the
+    generality of the point.   The additional task results should help
+    to further the strength of this claim.
+  \end{enumerate}
+\end{enumerate}
+
+In closing, I appeal to the Editor to provide some guidance in this
+next round of reviews --- it is impossible for any one paper to answer
+all possible questions or prove beyond any doubt the empirical
+generality of a set of results.  I think this paper makes a
+sufficiently strong case for the arguments presented therein for it to
+stimulate further research by others to either challenge or confirm
+the basic ideas.
+
+\closing{Sincerely,}
+
+\end{letter}
+\end{document}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: t
+%%% End: 
