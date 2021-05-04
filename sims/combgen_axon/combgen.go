@@ -36,6 +36,8 @@ import (
 	"github.com/goki/mat32"
 )
 
+// todo: print out missing items in each slot -- definitely cannot generalize to those!
+
 func main() {
 	TheSim.New()
 	TheSim.Config()

@@ -64,20 +64,20 @@ var ParamSets = params.Sets{
 		"Network": &params.Sheet{
 			{Sel: "Prjn", Desc: "norm and momentum on works better",
 				Params: params.Params{
-					"Prjn.Learn.Norm.On":     "true", // key to have on
-					"Prjn.Learn.Momentum.On": "true", // key to have on
-					"Prjn.Learn.WtBal.On":    "true", // key to have on
-					"Prjn.Learn.WtBal.Targs": "true", // no diff here
+					"Prjn.Learn.Norm.On":     "true",  // key to have on
+					"Prjn.Learn.Momentum.On": "true",  // key to have on
+					"Prjn.Learn.WtBal.On":    "false", // false much better than true for Rnd
+					"Prjn.Learn.WtBal.Targs": "true",  // no diff here
 				}},
 			{Sel: "Layer", Desc: "using default 1.8 inhib for all of network -- can explore",
 				Params: params.Params{
 					"Layer.Inhib.Layer.Gi":  "1.8",
-					"Layer.Learn.AvgL.Gain": "2.5", // 3.5 = 4.0 > 3.0 > 2.5 def
+					"Layer.Learn.AvgL.Gain": "3.5", // 3.5 = 4.0 > 3.0 > 2.5 def
 					"Layer.Act.Gbar.L":      "0.1", // set explictly, new default, a bit better vs 0.2
 				}},
 			{Sel: ".Back", Desc: "top-down back-projections MUST have lower relative weight scale, otherwise network hallucinates",
 				Params: params.Params{
-					"Prjn.WtScale.Rel": "0.2", // bigger better
+					"Prjn.WtScale.Rel": "0.1", // .1 > .2 on Rnd
 				}},
 			{Sel: "#Output", Desc: "pool output inhib -- major benefit",
 				Params: params.Params{
